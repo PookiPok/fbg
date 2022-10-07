@@ -1,6 +1,7 @@
 from lib2to3.pgen2.token import EQUAL
 from operator import eq
 from queue import Empty
+from statistics import variance
 from tokenize import Double
 from typing_extensions import Self
 import cv2
@@ -144,7 +145,10 @@ class FaceDetector():
   def resizeImg(self, img, target_size=(48, 48), grayscale=True):
 
     if grayscale == True:
-      img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+      try:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+      except:
+        print("img have an issue")
     
     if img.shape[0] > 0 and img.shape[1] > 0:
       factor_0 = target_size[0] / img.shape[0]
@@ -206,29 +210,92 @@ class FaceDetector():
             landmark_drawing_spec=None,
             connection_drawing_spec=self.mp_drawing_styles
             .get_default_face_mesh_iris_connections_style())
+      annotated_image = cv2.cvtColor(annotated_image , cv2.COLOR_RGB2BGR)
       return annotated_image,mesh_points,face_landmarks
     else:
-      return None,None,None
+      return []
 
-def createEmotionPicDirectory(self):
+  def createEmotionPicDirectory(self):
 
-  for subdir, dirs, files in os.walk('/home/ogi/Pictures/mesh_pic_20'):
-    for file in files:
-      frame = cv2.imread(os.path.join(subdir, file))
-      img, bboxs = self.locateFaces(frame)
-      if bboxs:
-        crop_img = bboxs[0][1]
-        emotion_img = self.resizeImg(crop_img)
-        new_img = cv2.resize(crop_img, (256,256))
-        full_emotion = self.loadEmotion(emotion_img)
-        if full_emotion['emotion_prediction'] > 0.90:
-          print(full_emotion['dominant_emotion'])
-          emotion = full_emotion['dominant_emotion']
-          cv2.imwrite('pictures/'+emotion+'/' + file, new_img)
+    img = cv2.imread('pictures/neutral/_pivot.jpg')
+    result = self.locateFaceMesh(img , True)
+    pivot_x = result[1][0][0]
+    pivot_y = result[1][0][1]
+    for subdir, dirs, files in os.walk('/home/ogi/Pictures/mesh_pic_30'):
+      for file in files:
+        frame = cv2.imread(os.path.join(subdir, file))
+        img, bboxs = self.locateFaces(frame)
+        if bboxs:
+          print("parsing img" + file)
+          crop_img = bboxs[0][1]
+          emotion_img = self.resizeImg(crop_img)
+          new_img = cv2.resize(crop_img, (256,256))
+          result_tmp = self.locateFaceMesh(new_img , True)
+          if result_tmp:
+            tmp_x = result_tmp[1][0][0]
+            tmp_y = result_tmp[1][0][1]
+            if (int(pivot_x-10) < tmp_x < int(pivot_x+10)) and (int(pivot_y-10) < tmp_y < int(pivot_y+10)):
+              full_emotion = self.loadEmotion(emotion_img)
+              if full_emotion['emotion_prediction'] > 0.90:
+                print(full_emotion['dominant_emotion'])
+                emotion = full_emotion['dominant_emotion']
+                cv2.imwrite('pictures/'+emotion+'/' + file, new_img)
+
+  def parsePicDirectory(self,accuracy=20):
+
+    img = cv2.imread('pictures/neutral/_pivot.jpg')
+    result = self.locateFaceMesh(img , True)
+    pivot_x = result[1][0][0]
+    pivot_y = result[1][0][1]
+    for subdir, dirs, files in os.walk('/home/ogi/Pictures/only_mesh'):
+      for file in files:
+        frame = cv2.imread(os.path.join(subdir, file))
+        img, bboxs = self.locateFaces(frame)
+        if bboxs:
+          print("parsing img" + file)
+          crop_img = bboxs[0][1]
+          try:
+            new_img = cv2.resize(crop_img, (256,256))
+            result_tmp = self.locateFaceMesh(new_img , True)
+            if result_tmp:
+              tmp_x = result_tmp[1][0][0]
+              tmp_y = result_tmp[1][0][1]
+              if (int(pivot_x-accuracy) < tmp_x < int(pivot_x+accuracy)) and (int(pivot_y-accuracy) < tmp_y < int(pivot_y+accuracy)):
+                cv2.imwrite('pictures/norm_pic/' + file, new_img)
+          except:
+            print("Can't parse:" + file)
+
+  def detectVariance(self,real_mesh , mean_mesh):
+    variance = np.var(np.var(np.array([[mean_mesh],[real_mesh]]),axis=0))
+    std = np.std(np.std(np.array([[mean_mesh],[real_mesh]]),axis=0))
+    return variance,std
+
+  def createPicSegment(self):
+    all_mesh = {}
+    count = 0
+    pic1 = cv2.imread('pictures/norm_pic/180009.jpg') # take the first image
+    result_pic1 = self.locateFaceMesh(pic1 , True)
+    start_mesh = result_pic1[1]
+    for subdir, dirs, files in os.walk('pictures/norm_pic'):
+      for file in files:
+        try:
+          frame = cv2.imread(os.path.join(subdir, file))
+          result = self.locateFaceMesh(frame , True)
+          if result:
+            mesh_points = result[1]
+            variance,std = self.detectVariance(mesh_points , start_mesh)
+            print("Variance:" + str(variance) + " Std:" + str(std) + " For image:" + file)
+            #new_mesh = np.mean( np.array([ start_mesh, mesh_points ]), axis=0 )
+        except:
+          print("Can't parse img:" + file)
+
 
 def pic_main():
   detector = FaceDetector()
+  #parsePicDirectory(detector)
   #createEmotionPicDirectory(detector)
+  detector.createPicSegment()
+  exit(0)
   all_mesh = {}
   count = 0
   for subdir, dirs, files in os.walk('pictures/happy'):
@@ -238,7 +305,7 @@ def pic_main():
       if result:
         meshimg = result[0]
         mesh_points = result[1]
-        m_p = np.array([np.multiply([p.x, p.y, p.z], [1, 1, 1]).astype(float) for p in result[2].landmark])
+        #m_p = np.array([np.multiply([p.x, p.y, p.z], [1, 1, 1]).astype(float) for p in result[2].landmark])
         all_mesh[count] = mesh_points
         count = count + 1
         #cv2.imshow("Image" , meshimg) 
@@ -250,20 +317,25 @@ def pic_main():
     new_mesh = np.mean( np.array([ new_mesh, all_mesh[place+1] ]), axis=0 )
     
     #print(new_mesh)
-  mean_mesh = np.ceil(new_mesh)
+  mean_mesh = new_mesh #np.ceil(new_mesh).astype(int)
   #img = cv2.imread('pictures/happy/_pivot.jpg')
-  img = cv2.imread('pictures/happy/200426.jpg')
+  #img = cv2.imread('pictures/surprise/201744.jpg')
+  #img = cv2.imread('pictures/neutral/202193.jpg')
+  #img = cv2.imread('pictures/neutral/_pivot.jpg')
+  #img = cv2.imread('pictures/sad/100482.jpg')
+  img = cv2.imread('pictures/happy/100096.jpg')
+  #img = cv2.imread('pictures/angry/100149.jpg')
+  #img = cv2.imread('pictures/happy/100155.jpg')
+
   result = detector.locateFaceMesh(img , True)
-  real_mesh = result[1] 
+  real_mesh = result[1]
+  variance = detectVariance(real_mesh , mean_mesh)
   for i in range(0,478):
     x = int(mean_mesh[i][0])
     y = int(mean_mesh[i][1])
-    x1 = int(real_mesh[i][0])
-    y2 = int(real_mesh[i][1])
-    cv2.circle(img,(x,y),1,(100,100,0),-1)
-    cv2.circle(img,(x1,y2),1,(255,255,0),-1)
-    
-  img = cv2.resize(img ,(720,720))
+    cv2.circle(result[0],(x,y),1,(0,0,0),-1)
+   
+  img = cv2.resize(result[0] ,(720,720)) 
   cv2.imshow("Final Result" , img)
   cv2.waitKey(0)
 
