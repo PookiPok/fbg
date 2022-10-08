@@ -271,29 +271,49 @@ class FaceDetector():
     return variance,std
 
   def createPicSegment(self):
-    all_mesh = {}
-    count = 0
-    pic1 = cv2.imread('pictures/norm_pic/180009.jpg') # take the first image
+    pic1 = cv2.imread('pictures/norm_pic/180025.jpg') # take the first image
     result_pic1 = self.locateFaceMesh(pic1 , True)
-    start_mesh = result_pic1[1]
+    all_mean_mesh = {}
+    mean_mesh = result_pic1[1]
+    dir_counter = 0
+    all_mean_mesh[dir_counter] = mean_mesh
     for subdir, dirs, files in os.walk('pictures/norm_pic'):
       for file in files:
         try:
+          found_std = False
           frame = cv2.imread(os.path.join(subdir, file))
           result = self.locateFaceMesh(frame , True)
           if result:
             mesh_points = result[1]
-            variance,std = self.detectVariance(mesh_points , start_mesh)
-            print("Variance:" + str(variance) + " Std:" + str(std) + " For image:" + file)
-            #new_mesh = np.mean( np.array([ start_mesh, mesh_points ]), axis=0 )
+            for i in all_mean_mesh:
+              mean_mesh = all_mean_mesh[i]
+              variance,std = self.detectVariance(mesh_points , mean_mesh)
+              print("Variance:" + str(variance) + " Std:" + str(std) + " For image:" + file)
+              if std < 1.5:
+                print("Variance:" + str(variance) + " Std:" + str(std) + " For image:" + file + " Place in bucket:" + str(i))
+                mean_mesh = np.mean( np.array([ mean_mesh, mesh_points ]), axis=0 )
+                path = 'pictures/norm_pic/picseg_'+ str(i)
+                if os.path.exists(path) == False:
+                  os.mkdir('pictures/norm_pic/picseg_'+ str(i))
+                cv2.imwrite('pictures/norm_pic/picseg_'+ str(i) + '/' + file, frame)
+                all_mean_mesh[i] = mean_mesh
+                found_std = True
+                break 
+            if found_std == False:
+              path = 'pictures/norm_pic/picseg_'+ str(i+1)
+              if os.path.exists(path) == False:
+                os.mkdir('pictures/norm_pic/picseg_'+ str(i+1))
+              cv2.imwrite('pictures/norm_pic/picseg_'+ str(i+1) + '/' + file, frame)
+              all_mean_mesh[i+1] = mesh_points
+
         except:
           print("Can't parse img:" + file)
 
 
 def pic_main():
   detector = FaceDetector()
-  #parsePicDirectory(detector)
-  #createEmotionPicDirectory(detector)
+  #detector.parsePicDirectory(10)
+  #detector.createEmotionPicDirectory()
   detector.createPicSegment()
   exit(0)
   all_mesh = {}
