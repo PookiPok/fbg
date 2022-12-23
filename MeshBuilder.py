@@ -5,6 +5,7 @@ from statistics import variance
 from tokenize import Double
 from typing_extensions import Self
 import cv2
+import json
 from cv2 import mean
 import numpy as np
 import mediapipe as mp
@@ -626,10 +627,43 @@ class FaceDetector():
     calc = min + min * accuracy
     return calc
 
+def populateReport(report,accuracy):
+  not_match_report_file = 'stats/not_match_report_' + str(accuracy) + '.txt'
+  not_match_report = []
+  size = len(report)
+  count_match = 0
+  count_not_match = 0
+  for key in report:
+    data = report[key]
+    happy_std = data['happy']
+    neutral_std = data['neutral']
+    emotion = data['emotion']
+    if (happy_std < neutral_std):
+      if emotion == 'happy':
+        count_match = count_match + 1
+      else:
+        count_not_match = count_not_match + 1
+        not_match_report.append(data)
+    else:
+      if emotion == 'neutral':
+        count_match = count_match + 1
+      else:
+        count_not_match = count_not_match + 1
+        not_match_report.append(data)
+  avg_match = (count_match / size) * 100
+  avg_not_match = (count_not_match / size) * 100
+  not_match_report.append({"avg_match": avg_match, "avg_not_match": avg_not_match})
+  with open(not_match_report_file, "w") as outfile:
+    for data in not_match_report:
+      outfile.write(str(data))
+      outfile.write("\n")
+
+
 
 def pic_main():
   print("Starting program....")
-  accuracy = 20
+  report = {}
+  accuracy = 3.2
   detector = FaceDetector()
   #detector.createPicHeatMapStdBase(accuracy)
   #detector.createPivotPicture()
@@ -639,11 +673,11 @@ def pic_main():
   #detector.createPicSegmentAll()
   #full_pic_mean,full_heat_map = detector.createPicHeatMapMeanBase()
   #full_pic_mean,full_heat_map = detector.createPicHeatMapStdBase()
-  full_pic_mean,full_pic_median,full_std_mean_map,full_std_median_map = detector.createPicHeatMapBaseOnDistance()
+  full_pic_happy,full_pic_neutral,full_std_happy_map,full_std_neutral_map = detector.createPicHeatMapBaseOnDistance()
   mean_mesh_neutral = []
   mean_mesh_happy = []
-  mean_mesh_neutral = detector.buildHeatMapMeshPoints(full_pic_median,full_std_median_map,accuracy)
-  mean_mesh_happy = detector.buildHeatMapMeshPoints(full_pic_mean,full_std_mean_map,accuracy)
+  mean_mesh_neutral = detector.buildHeatMapMeshPoints(full_pic_neutral,full_std_neutral_map,accuracy)
+  mean_mesh_happy = detector.buildHeatMapMeshPoints(full_pic_happy,full_std_happy_map,accuracy)
 
   path = 'pictures/_pivot.jpg'
   img = cv2.imread(path)
@@ -652,31 +686,41 @@ def pic_main():
   #img = cv2.resize(img ,(720,720)) 
   #cv2.imshow("Final Result" , img)
   #cv2.waitKey(0)
-  for subdir, dirs, files in os.walk('/home/ogi/Pictures/mesh_pic'):
+  count = 0
+  for subdir, dirs, files in os.walk('/home/ogi/Pictures/test'):
     for file in files:
       new_file = os.path.join(subdir, file)
       img = cv2.imread(new_file)
-      #img = detector.resizeImage(img)
+      img = detector.resizeImage(img)
       result = detector.locateFaceMesh(img , True)
-      tmp_x = result[1][1][0]
-      tmp_y = result[1][1][1]
-      div_x = pivot_x - tmp_x
-      div_y = pivot_y - tmp_y
-      norm_mesh = result[1]
-      for i in range(0,478):
-        loc = norm_mesh[i]
-        loc[0] = loc[0] + div_x
-        loc[1] = loc[1] + div_y
-      
-      heat_map_real_points_with_happy = detector.buildHeatMapMeshPoints(norm_mesh,full_std_mean_map,accuracy)
-      heat_map_real_points_with_neutral = detector.buildHeatMapMeshPoints(norm_mesh,full_std_median_map,accuracy)
-      variance_h,std_h = detector.detectVariance(heat_map_real_points_with_happy , mean_mesh_happy,'happy')
-      variance_n,std_n = detector.detectVariance(heat_map_real_points_with_neutral , mean_mesh_neutral, 'neutral')
-      print("Variance To Happy:" + str(variance_h) + " Std:" + str(std_h) + " for image:" + file)
-      print("Variance To Neutral:" + str(variance_n) + " Std:" + str(std_n) + " for image:" + file)
-      emotion_img = detector.resizeImg(img)
-      full_emotion = detector.loadEmotion(emotion_img)
-      print(full_emotion['dominant_emotion'])
+      count = count + 1
+      print("++++ Img:" + str(file) + " Count:" + str(count))
+      try:
+        tmp_x = result[1][1][0]
+        tmp_y = result[1][1][1]
+        div_x = pivot_x - tmp_x
+        div_y = pivot_y - tmp_y
+        norm_mesh = result[1]
+        for i in range(0,478):
+          loc = norm_mesh[i]
+          loc[0] = loc[0] + div_x
+          loc[1] = loc[1] + div_y
+        
+        heat_map_real_points_with_happy = detector.buildHeatMapMeshPoints(norm_mesh,full_std_happy_map,accuracy)
+        heat_map_real_points_with_neutral = detector.buildHeatMapMeshPoints(norm_mesh,full_std_neutral_map,accuracy)
+        variance_h,std_h = detector.detectVariance(heat_map_real_points_with_happy , mean_mesh_happy,'happy')
+        variance_n,std_n = detector.detectVariance(heat_map_real_points_with_neutral , mean_mesh_neutral, 'neutral')
+        print("Variance To Happy:" + str(variance_h) + " Std:" + str(std_h) + " for image:" + file)
+        print("Variance To Neutral:" + str(variance_n) + " Std:" + str(std_n) + " for image:" + file)
+        emotion_img = detector.resizeImg(img)
+        full_emotion = detector.loadEmotion(emotion_img)
+        report[count] = {"image": file, "emotion": full_emotion['dominant_emotion'],"happy": std_h, "neutral": std_n}
+        print(full_emotion['dominant_emotion'])
+        img = cv2.resize(img ,(720,720))
+        cv2.imshow("Final Result" , img)
+        cv2.waitKey(0)
+      except Exception as e:
+        print("++++ Bad Img:" + str(file))
   #    f.writelines("Image name:"+file+ " std:" + str(std) + " var:" + str(variance))
   #    f.write('\n')
   #    for i in range(0,len(mean_mesh)):
@@ -684,11 +728,15 @@ def pic_main():
   #      y = int(mean_mesh[i][1])
   #      cv2.circle(img,(x,y),1,(0,0,0),-1) 
   #      x_real = int(heat_map_real_points[i][0])
-  #      y_real = int(heat_map_real_points[i][1])
+  #      y_real = int(heat_map_real_points[i][1 ])
   #      cv2.circle(img,(x_real,y_real),1,(255,255,255),-1) 
-      img = cv2.resize(img ,(720,720)) 
-      cv2.imshow("Final Result" , img)
-      cv2.waitKey(0)
+      #
+  populateReport(report,accuracy)
+  #json_object = json.dumps(report, indent=4)
+
+  #with open("report.json", "w") as outfile:
+  #  outfile.write(json_object)
+  #print(json_object)
 
   
 
