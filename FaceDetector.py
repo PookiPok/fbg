@@ -178,7 +178,7 @@ class FaceDetector():
     return img_pixels
 
 
-  def locateFaceMesh(self , img , draw = True):
+  def locateEyeFaceMesh(self , img , draw = True):
 
     imgRGB = cv2.cvtColor(img , cv2.COLOR_BGR2RGB)
     img_h, img_w = img.shape[:2]
@@ -205,6 +205,16 @@ class FaceDetector():
                 (0, 0 , 0) , 2)
       print(iris_position + "----" + str(ratio) + "-----" + str(isclose))
 
+    return img
+
+  def locateFaceMesh(self , img , draw = True):
+
+    imgRGB = cv2.cvtColor(img , cv2.COLOR_BGR2RGB)
+    img_h, img_w = img.shape[:2]
+    results = self.faceMesh.process(imgRGB)
+    if results.multi_face_landmarks:
+      mesh_points = np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+      print(mesh_points)
     return img
 
   def isEyesClose(self, mesh_points,diss = 30):
@@ -258,9 +268,7 @@ def main():
     success, img = cap.read()
     if count%fpsPerSec==0:
       img, bboxs = detector.locateFaces(img)
-      meshimg = detector.locateFaceMesh(img , True)
-      
-      #cv2.waitKey(0)
+      meshimg = detector.locateEyeFaceMesh(img , True)
       if bboxs:
         crop_img = bboxs[0][1]
         new_img = detector.resizeImg(crop_img)
@@ -287,10 +295,11 @@ def pic_main():
     for file in files:
       frame = cv2.imread(os.path.join(subdir, file))
       img, bboxs = detector.locateFaces(frame)
-      meshimg = detector.locateFaceMesh(img , True)
+      #meshimg = detector.locateFaceMesh(img , True)
       if bboxs:
         crop_img = bboxs[0][1]
         new_img = detector.resizeImg(crop_img)
+        meshimg = detector.locateFaceMesh(crop_img , True)
         dominant_emotion = detector.loadEmotion(new_img)
         cv2.putText(meshimg, f'{str(dominant_emotion)}',
                 (bboxs[0][2][0] , bboxs[0][2][1]-20) , cv2.FONT_HERSHEY_SIMPLEX, 2 , 
