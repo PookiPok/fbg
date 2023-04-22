@@ -255,7 +255,7 @@ class FaceDetector():
 
 def main():
 
-  cap = cv2.VideoCapture('video/2.mp4')
+  cap = cv2.VideoCapture('video/1.mp4')
   #cap = cv2.VideoCapture(0)
   fps = cap.get(cv2.CAP_PROP_FPS)
   fpsPerSec = fps * 1 # 5 sec 
@@ -313,5 +313,5 @@ def pic_main():
 
 
 if __name__ == "__main__":
-  #main()
-  pic_main()
+  main()
+  #pic_main()

@@ -15,7 +15,6 @@ import time
 import os
 from deepface import DeepFace
 from PIL import Image
-import cvzone
 from cvzone.FaceMeshModule import FaceMeshDetector
 from cvzone.PlotModule import LivePlot
 import matplotlib.pyplot as plt
