@@ -11,7 +11,7 @@ class DatasetBuilder:
   def __init__(self, image_static=True):
     self.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=image_static)
 
-  def build_full_dataset(self, location, state='both'):
+  def build_heatmap_for_dataset(self, location, state='both'):
     total_pic = 0
     error_pic = 0   
     error_pic_path = []
@@ -105,6 +105,8 @@ if __name__ == "__main__":
     ap.add_argument("-s", "--state", default='both', required=False,help="Which dataset to build, happy, not_happy and both (default)")
     ap.add_argument("-t", "--test_dir", required=False,help="Which test directory to use")
 
-    args = vars(ap.parse_args())
-    #dataset_builder.build_full_dataset(args['location'], args['state'])
-    dataset_builder.build_dataset_for_trainer(args['location'], args['state'], args['test_dir'])
+    args = ap.parse_args()
+    if (args.state != 'both'):
+        dataset_builder.build_heatmap_for_dataset(args.location, args.state)
+    else:
+        dataset_builder.build_dataset_for_trainer(args.location, args.state, args.test_dir)
